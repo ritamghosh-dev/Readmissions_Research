@@ -2,3 +2,6 @@ Column_Explanations.xlsx
 Scratchpad.py
 sample_data.csv
 .DS_Store
+.env
+data/
+results/
