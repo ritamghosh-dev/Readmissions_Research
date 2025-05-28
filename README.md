@@ -38,3 +38,25 @@ This project is designed to analyze and model hospital readmission data. Below i
    Run [`model.py`](model.py) to load the tokenized dataset, set up the model, and train/evaluate it. Model checkpoints are saved in the `results/` folder.
 
 This repository is structured to progress from raw data to a trained and evaluated model, with clear separation of concerns between preprocessing, narrative generation, tokenization, and model handling.
+
+Readmissions_Research
+├─ README.md
+├─ code
+│  ├─ analyze_truncation.py
+│  ├─ collab_model.ipynb
+│  ├─ mapping.py
+│  ├─ model.py
+│  ├─ preprocessing.py
+│  └─ tokenizer.py
+├─ data
+│  ├─ cpt_code.csv
+│  ├─ discharge_code.csv
+│  ├─ narrative_data.csv
+│  ├─ original_data.csv
+│  ├─ preprocessed_data.csv
+│  └─ tokenized_hf_dataset
+│     ├─ data-00000-of-00001.arrow
+│     ├─ dataset_info.json
+│     └─ state.json
+└─ results
+   
