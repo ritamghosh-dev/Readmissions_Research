@@ -7,12 +7,11 @@ import numpy as np # Import numpy for checking NaN
 # Global dictionaries for mappings
 diagnosis_mapping = {}
 procedure_mapping = {}
-discharge_mapping = {}
+
 
 # --- Define column names as constants ---
 TARGET_COLUMN = 'Readmitted'
-READMISSION_DAYS_COLUMN = 'Readmission_Days'
-READMISSION_COUNT_COLUMN = 'Readmission_Count' # Added constant
+
 # --- END CONSTANTS ---
 
 def load_procedure_mapping(csv_path):
@@ -33,39 +32,10 @@ def load_procedure_mapping(csv_path):
         procedure_mapping = {}
 
 
-def load_discharge_mapping_csv(csv_path):
-    """
-    Reads a CSV file for discharge status mapping. Expects at least two columns: 'Code' and 'Description'.
-    Populates the global dictionary: discharge_mapping.
-    """
-    global discharge_mapping
-    try:
-        df = pd.read_csv(csv_path)
-        discharge_mapping = pd.Series(df.Description.values, index=df.Code.astype(str).str.strip()).to_dict()
-        print("Loaded", len(discharge_mapping), "discharge status mappings (from CSV).")
-    except FileNotFoundError:
-        print(f"Warning: Discharge mapping file not found at {csv_path}. Disposition interpretation may be limited.")
-        discharge_mapping = {}
-    except Exception as e:
-        print(f"Error loading discharge mapping from {csv_path}: {e}")
-        discharge_mapping = {}
 
 
-def interpret_disposition(code) -> str:
-    """
-    Interpret the discharge status code (as a string or numeric value) using the discharge_mapping.
-    Returns a human-readable description or a default if not found.
-    """
-    if pd.isna(code):
-        return "with unspecified disposition"
-    try:
-        code_str = str(int(code)).strip().zfill(2) if pd.notna(code) else ""
-    except ValueError:
-         code_str = str(code).strip()
-    except Exception as e:
-        print(f"Error converting disposition code {code}: {e}")
-        return "with unspecified disposition"
-    return discharge_mapping.get(code_str, "with unspecified disposition")
+
+
 
 # ICD-10 Block definitions (condensed)
 icd10_blocks = [
@@ -112,61 +82,6 @@ def convert_row_to_narrative(row):
     """ Generates narrative summary, now including admission sequence context. """
     narrative_parts = []
 
-    # --- 1. Demographics and Presentation ---
-    age = row.get('AGE', 'Unknown age')
-    gender = "female" if row.get('FEMALE') == 1 else "male"
-    race_code = row.get('RACE')
-    hispanic_flag = row.get('HISPANIC')
-    race_desc = ""
-    if hispanic_flag == 1: race_desc = "Hispanic"
-    if pd.notna(race_code):
-        try:
-            race_code_int = int(race_code)
-            race_map = {1: "White", 2: "Black or African American", 3: "Hispanic or Latino", 4: "Asian or Pacific Islander", 5: "American Indian or Alaska Native", 6: "Other race", 7: "Unknown"}
-            race_val = race_map.get(race_code_int, "")
-            if race_val and not race_desc: race_desc = race_val
-            elif race_val and race_desc and race_val not in ["Hispanic", "Other race", "Unknown"]: race_desc = f"Hispanic {race_val}"
-        except (ValueError, TypeError): pass # Keep race_desc as is
-
-    homeless = " homeless" if str(row.get('Homeless', '0')).strip() == '1' else ""
-    weekend = " on a weekend" if row.get('AWEEKEND') == 1 else ""
-    came_through_ed = " presented via the emergency department" if row.get('HCUP_ED') == 1 else " was admitted"
-    first_part = f"A {age}-year-old{homeless}{' ' + race_desc if race_desc else ''} {gender}{came_through_ed}{weekend}"
-    primary_dx_code = row.get('I10_DX1')
-    if pd.notna(primary_dx_code) and str(primary_dx_code).strip():
-        primary_dx_desc = lookup_diagnosis_description(primary_dx_code)
-        if primary_dx_desc and primary_dx_desc not in ["Unclassified Code", "Incomplete Code"]: first_part += f" primarily for {primary_dx_desc}"
-        else: first_part += f" with primary diagnosis code {primary_dx_code}"
-    narrative_parts.append(first_part + ".")
-
-    # --- NEW: Admission Context ---
-    admission_context_parts = []
-    readm_count_val = row.get(READMISSION_COUNT_COLUMN)
-    readm_days_val = row.get(READMISSION_DAYS_COLUMN)
-
-    if pd.notna(readm_count_val):
-        try:
-            readm_count = int(readm_count_val)
-            if readm_count == 1:
-                admission_context_parts.append("This was an index admission.")
-            elif readm_count > 1:
-                ordinal_suffix = get_ordinal_suffix(readm_count)
-                admission_statement = f"This was the {readm_count}{ordinal_suffix} admission for this patient"
-                if pd.notna(readm_days_val):
-                    try:
-                        days = int(readm_days_val)
-                        if days >= 0: # Ensure days are not negative (should be handled in preprocessing, but good check)
-                             admission_statement += f", occurring {days} days after the previous discharge."
-                    except (ValueError, TypeError):
-                        # If Readmission_Days is not a valid number for some reason, just state the admission count
-                        pass # Fall through to just the admission count statement
-                admission_context_parts.append(admission_statement + ".")
-        except (ValueError, TypeError):
-            print(f"Warning: Could not parse Readmission_Count: {readm_count_val}")
-
-    if admission_context_parts:
-        narrative_parts.append(" ".join(admission_context_parts))
-    # --- END NEW: Admission Context ---
 
     # --- 2. Additional Diagnoses ---
     additional_dx = []
@@ -196,63 +111,6 @@ def convert_row_to_narrative(row):
                 if proc_desc and proc_desc not in procedures: procedures.append(proc_desc)
     if procedures: narrative_parts.append(f"Key procedures performed included {', '.join(procedures)}.")
 
-    # --- 5. Outcome and Disposition (Original Readmission Info Excluded) ---
-    outcome_parts = []
-    los = row.get('LOS')
-    if pd.notna(los):
-        try:
-            los_val = int(los)
-            if los_val == 0: outcome_parts.append("a same-day visit")
-            elif los_val == 1: outcome_parts.append("a length of stay of 1 day")
-            else: outcome_parts.append(f"a length of stay of {los_val} days")
-        except (ValueError, TypeError): pass
-
-    if row.get('DIED') == 1:
-        outcome_parts.append("resulting in patient death")
-    else:
-        disp = row.get('DISPUNIFORM')
-        if pd.isna(disp) and 'DISPUB04' in row: disp = row.get('DISPUB04')
-        if pd.notna(disp):
-            disp_desc = interpret_disposition(disp)
-            if disp_desc != "with unspecified disposition": outcome_parts.append(f"with discharge {disp_desc}")
-
-    # The TARGET_COLUMN (Readmitted) and actual readmission days are now explicitly NOT added to narrative here
-    # to prevent data leakage, as per your previous instruction.
-    # The target variable will be handled separately.
-
-    totchg = row.get('TOTCHG')
-    if pd.notna(totchg):
-        try: outcome_parts.append(f"and total charges of ${int(totchg):,}")
-        except (ValueError, TypeError): pass
-
-    if outcome_parts: narrative_parts.append("The encounter involved " + ", ".join(outcome_parts) + ".")
-
-    # --- 6. Social Context ---
-    social_parts = []
-    pay1 = row.get('PAY1')
-    payer_map = {1: "Medicare", 2: "Medicaid", 3: "Private insurance", 4: "self-pay", 5: "no charge", 6: "other"}
-    if pd.notna(pay1):
-        try:
-            pay1_int = int(pay1)
-            if pay1_int in payer_map:
-                payer_text = payer_map[pay1_int]
-                if pay1_int == 4 or pay1_int == 5: social_parts.append(f"listed as {payer_text}")
-                else: social_parts.append(f"primarily covered by {payer_text}")
-        except (ValueError, TypeError): pass
-
-    inc_quart_val = row.get('MEDINCSTQ')
-    inc_quart_int = None
-    if pd.notna(inc_quart_val):
-        inc_quart_str = str(inc_quart_val).strip()
-        if inc_quart_str.isdigit():
-            try: inc_quart_int = int(inc_quart_str)
-            except ValueError: pass
-    if inc_quart_int is not None and inc_quart_int in [1, 2, 3, 4]:
-         quart_map = {1: "lowest", 2: "second-lowest", 3: "second-highest", 4: "highest"}
-         inc_desc = quart_map.get(inc_quart_int)
-         if inc_desc: social_parts.append(f"residing in an area with the {inc_desc} median income quartile")
-
-    if social_parts: narrative_parts.append("Social context indicates the patient was " + " and ".join(social_parts) + ".")
 
     # --- 7. Combine all parts ---
     narrative = " ".join(part for part in narrative_parts if part and str(part).strip())
@@ -270,7 +128,6 @@ if __name__ == "__main__":
     # Load external mappings
     print("Loading external mappings...")
     load_procedure_mapping(procedure_mapping_csv)
-    load_discharge_mapping_csv(discharge_mapping_csv)
     print("Mappings loaded.")
 
     # Load the preprocessed data
@@ -290,7 +147,7 @@ if __name__ == "__main__":
     # Ensure required columns from preprocessing.py exist for the narrative
     # READMISSION_COUNT_COLUMN and READMISSION_DAYS_COLUMN are now used in the narrative
     # TARGET_COLUMN is still used for the final label
-    required_narrative_cols = [READMISSION_COUNT_COLUMN, READMISSION_DAYS_COLUMN, 'CCI_Score', TARGET_COLUMN]
+    required_narrative_cols = ['CCI_Score', TARGET_COLUMN]
     for col in required_narrative_cols:
         if col not in df_preprocessed.columns:
              print(f"Warning: Expected input column '{col}' for narrative generation or labeling not found in {preprocessed_input_csv}.")
