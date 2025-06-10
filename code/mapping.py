@@ -81,6 +81,7 @@ def get_ordinal_suffix(n):
 def convert_row_to_narrative(row):
     """ Generates narrative summary, now including admission sequence context. """
     narrative_parts = []
+    first_part="This patient was admitted to the hospital"
     primary_dx_code = row.get('I10_DX1')
     if pd.notna(primary_dx_code) and str(primary_dx_code).strip():
         primary_dx_desc = lookup_diagnosis_description(primary_dx_code)
