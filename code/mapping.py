@@ -81,6 +81,13 @@ def get_ordinal_suffix(n):
 def convert_row_to_narrative(row):
     """ Generates narrative summary, now including admission sequence context. """
     narrative_parts = []
+    first_part="This patient was admitted to the hospital"
+    primary_dx_code = row.get('I10_DX1')
+    if pd.notna(primary_dx_code) and str(primary_dx_code).strip():
+        primary_dx_desc = lookup_diagnosis_description(primary_dx_code)
+        if primary_dx_desc and primary_dx_desc not in ["Unclassified Code", "Incomplete Code"]: first_part += f" primarily for {primary_dx_desc}"
+        else: first_part += f" with primary diagnosis code {primary_dx_code}"
+    narrative_parts.append(first_part + ".")
 
 
     # --- 2. Additional Diagnoses ---
@@ -102,7 +109,7 @@ def convert_row_to_narrative(row):
 
     # --- 4. Procedures ---
     procedures = []
-    cpt_cols = [f'CPT{i}' for i in range(1, 101)]
+    cpt_cols = [f'CPT{i}' for i in range(1, 6)]
     for cpt_col in cpt_cols:
          if cpt_col in row:
             cpt_code = row[cpt_col]
@@ -188,4 +195,3 @@ if __name__ == "__main__":
         print("Final data saved successfully.")
     except Exception as e:
         print(f"Error saving final data: {e}")
-
