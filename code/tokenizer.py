@@ -7,7 +7,7 @@ hf_token = os.getenv("HF_ACCESS_TOKEN")
 
 # --- Configuration ---
 INPUT_CSV_PATH = 'data/narrative_data.csv'
-OUTPUT_DATASET_DIR = 'data/tokenized_hf_dataset'
+OUTPUT_DATASET_DIR = 'data/tokenized_hf_dataset_variable_cpt'
 MODEL_CHECKPOINT = "distilbert-base-uncased"
 MAX_LENGTH = 512
 
