@@ -1,15 +1,21 @@
 import pandas as pd
 from transformers import AutoTokenizer
-from datasets import Dataset, Features, Value, Sequence # Import Features for schema definition
+from datasets import Dataset, Features, Value, Sequence
 import os
 
+# Retrieve your Hugging Face access token from your environment
+# This is REQUIRED for Gemma models.
 hf_token = os.getenv("HF_ACCESS_TOKEN")
+if not hf_token:
+    print("Error: Hugging Face access token not found. Please set the HF_ACCESS_TOKEN environment variable.")
+    exit()
 
 # --- Configuration ---
+# Assuming scripts are run from the 'code/' directory
 INPUT_CSV_PATH = 'data/narrative_data.csv'
-OUTPUT_DATASET_DIR = 'data/tokenized_hf_dataset'
-MODEL_CHECKPOINT = "distilbert-base-uncased"
-MAX_LENGTH = 512
+OUTPUT_DATASET_DIR = 'data/tokenized_hf_dataset_gemma3_1b' # New output dir for this tokenizer
+MODEL_CHECKPOINT = "google/gemma-3-1b-pt" # Changed to Gemma 3 1B PT
+MAX_LENGTH = 8192 # Gemma 3's max length
 
 # --- Load Data ---
 print(f"Loading data from {INPUT_CSV_PATH}...")
@@ -19,7 +25,6 @@ try:
          raise ValueError("Input CSV must contain 'prompt' and 'label' columns.")
     df = df.reset_index(drop=True)
     df['label'] = df['label'].astype(int)
-    # Ensure prompt is string
     df['prompt'] = df['prompt'].astype(str)
     print(f"Loaded {len(df)} records.")
 except FileNotFoundError:
@@ -29,7 +34,6 @@ except Exception as e:
     print(f"Error loading data: {e}")
     exit()
 
-# Define initial features including prompt
 initial_features = Features({
     'label': Value('int64'),
     'prompt': Value('string')
@@ -40,44 +44,33 @@ print("Converted DataFrame to Hugging Face Dataset.")
 # --- Initialize Tokenizer ---
 print(f"Initializing tokenizer from {MODEL_CHECKPOINT}...")
 try:
-    tokenizer = AutoTokenizer.from_pretrained(MODEL_CHECKPOINT)
-    # Ensure tokenizer has a pad token if not already set (DistilBERT usually has [PAD])
+    tokenizer = AutoTokenizer.from_pretrained(MODEL_CHECKPOINT, token=hf_token)
     if tokenizer.pad_token is None:
-        tokenizer.add_special_tokens({'pad_token': '[PAD]'})
-        print("Added pad_token to tokenizer.")
+        # Gemma uses eos_token as the pad_token
+        tokenizer.pad_token = tokenizer.eos_token
+        print("Set tokenizer.pad_token to tokenizer.eos_token.")
 except Exception as e:
     print(f"Error initializing tokenizer: {e}")
     exit()
 
 # --- Define Tokenization Function ---
 def tokenize_function(examples):
-    # The tokenizer will return input_ids, attention_mask
-    # The 'prompt' field will be passed through if not in remove_columns
     return tokenizer(examples['prompt'], padding='max_length', truncation=True, max_length=MAX_LENGTH)
 
 # --- Tokenize the Dataset ---
 print("Tokenizing the dataset...")
 try:
-    # Define the features *after* tokenization, now including prompt
     tokenized_features_with_prompt = Features({
         'label': Value('int64'),
-        'prompt': Value('string'), # Keep prompt
+        'prompt': Value('string'),
         'input_ids': Sequence(feature=Value(dtype='int32'), length=MAX_LENGTH),
         'attention_mask': Sequence(feature=Value(dtype='int8'), length=MAX_LENGTH)
     })
-    # Apply tokenization. Remove_columns is NOT removing 'prompt' here.
-    # If 'prompt' is not explicitly removed, it's usually kept if it's part of the input features.
-    # To be safe, let's ensure map doesn't remove it by default or explicitly handle its presence.
-    # The map function will add new columns ('input_ids', 'attention_mask').
-    # Original columns not specified in remove_columns are typically kept.
     tokenized_dataset = dataset.map(
         tokenize_function,
         batched=True,
-        # remove_columns=['some_other_column_if_any'] # We want to keep 'prompt' and 'label'
-                                                    # Tokenizer output will be added.
-        features=tokenized_features_with_prompt # Ensure new schema is applied
+        features=tokenized_features_with_prompt
         )
-    # Ensure 'prompt' is still there, and other columns like 'label'
     print("Tokenization complete.")
     print("\nTokenized Dataset Info (should include 'prompt'):")
     print(tokenized_dataset)
@@ -93,3 +86,4 @@ try:
     print("Tokenized dataset saved successfully.")
 except Exception as e:
     print(f"Error saving tokenized dataset: {e}")
+
