@@ -109,7 +109,7 @@ def convert_row_to_narrative(row):
 
     # --- 4. Procedures ---
     procedures = []
-    cpt_cols = [f'CPT{i}' for i in range(1, 6)]
+    cpt_cols = [f'CPT{i}' for i in range(1, 11)]
     for cpt_col in cpt_cols:
          if cpt_col in row:
             cpt_code = row[cpt_col]
