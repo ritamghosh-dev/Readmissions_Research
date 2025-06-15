@@ -92,7 +92,7 @@ def convert_row_to_narrative(row):
 
     # --- 2. Additional Diagnoses ---
     additional_dx = []
-    diag_cols = [f'I10_DX{i}' for i in range(2, 36)]
+    diag_cols = [f'I10_DX{i}' for i in range(2, 6)]
     for dx_col in diag_cols:
         if dx_col in row:
             dx_code = row[dx_col]
@@ -109,7 +109,7 @@ def convert_row_to_narrative(row):
 
     # --- 4. Procedures ---
     procedures = []
-    cpt_cols = [f'CPT{i}' for i in range(1, 101)]
+    cpt_cols = [f'CPT{i}' for i in range(1, 6)]
     for cpt_col in cpt_cols:
          if cpt_col in row:
             cpt_code = row[cpt_col]
