@@ -4,13 +4,13 @@ import numpy as np # For NaN handling
 import os # Import os for directory creation
 
 # --- Configuration ---
-INPUT_CSV_PATH = 'data/original_data.csv' # Assuming data is in a 'data' subdirectory
+INPUT_CSV_PATH = 'data/NY2019_Ritam.csv' # Assuming data is in a 'data' subdirectory
 OUTPUT_CSV_PATH = 'data/preprocessed_data.csv' # Output to 'data' subdirectory
 PATIENT_ID_COLUMN = 'N' # Encounter ID (remains unique for each row)
 VISIT_LINK_COLUMN = 'VisitLink' # Patient identifier linking visits
-READMISSION_COUNT_COLUMN = 'Readmission_Count' # Column indicating visit sequence
-READMISSION_DAYS_COLUMN = 'Readmission_Days' # Column with days to readmission
-TARGET_COLUMN = 'Readmitted' # New binary target column
+READMISSION_COUNT_COLUMN = 'Readmission_Label' # Column indicating visit sequence
+# READMISSION_DAYS_COLUMN = 'Readmission_Days' # Column with days to readmission
+TARGET_COLUMN = 'Readmitted30' # New binary target column
 DIAGNOSIS_COLUMNS = [f'I10_DX{i}' for i in range(1, 35)] # ICD code columns
 READMISSION_WINDOW = 30 # Define the readmission window in days
 
@@ -23,7 +23,7 @@ try:
 
     # Convert Readmission_Count and Readmission_Days to numeric, coercing errors to NaN
     df[READMISSION_COUNT_COLUMN] = pd.to_numeric(df[READMISSION_COUNT_COLUMN], errors='coerce')
-    df[READMISSION_DAYS_COLUMN] = pd.to_numeric(df[READMISSION_DAYS_COLUMN], errors='coerce')
+    # df[READMISSION_DAYS_COLUMN] = pd.to_numeric(df[READMISSION_DAYS_COLUMN], errors='coerce')
 
     # Drop rows where Readmission_Count is NaN (essential for sorting and logic)
     df.dropna(subset=[READMISSION_COUNT_COLUMN], inplace=True)
@@ -31,10 +31,10 @@ try:
 
     print(f"Loaded {len(df)} records.")
 
-    # --- Clean Readmission_Days: Set negative values to NaN ---
-    print(f"Cleaning {READMISSION_DAYS_COLUMN} for negative values...")
-    df.loc[df[READMISSION_DAYS_COLUMN] < 0, READMISSION_DAYS_COLUMN] = np.nan
-    print(f"Negative values in {READMISSION_DAYS_COLUMN} set to NaN.")
+    # # --- Clean Readmission_Days: Set negative values to NaN ---
+    # print(f"Cleaning {READMISSION_DAYS_COLUMN} for negative values...")
+    # df.loc[df[READMISSION_DAYS_COLUMN] < 0, READMISSION_DAYS_COLUMN] = np.nan
+    # print(f"Negative values in {READMISSION_DAYS_COLUMN} set to NaN.")
 
 except FileNotFoundError:
     print(f"Error: Input file not found at {INPUT_CSV_PATH}")
@@ -113,24 +113,24 @@ except Exception as e:
     print(f"Error during comorbidity calculation: {e}")
     df['CCI_Score'] = 0 # Default CCI if calculation fails
 
-# --- Apply Chained Readmission Logic ---
-print("Applying chained readmission logic...")
-df.sort_values(by=[VISIT_LINK_COLUMN, READMISSION_COUNT_COLUMN], inplace=True)
-df['Next_Visit_RDays'] = df.groupby(VISIT_LINK_COLUMN)[READMISSION_DAYS_COLUMN].shift(-1)
-df[TARGET_COLUMN] = 0
-# df[f"{READMISSION_DAYS_COLUMN}_final_value"] = pd.NA # Use pd.NA for pandas >= 1.0
-valid_readmission_condition = (df['Next_Visit_RDays'].notna()) & \
-                              (df['Next_Visit_RDays'] <= READMISSION_WINDOW)
-df.loc[valid_readmission_condition, TARGET_COLUMN] = 1
-# df.loc[valid_readmission_condition, f"{READMISSION_DAYS_COLUMN}_final_value"] = df.loc[valid_readmission_condition, 'Next_Visit_RDays']
-print(f"Processed readmission logic. {df[TARGET_COLUMN].sum()} visits marked as leading to a 30-day readmission.")
+# # --- Apply Chained Readmission Logic ---
+# print("Applying chained readmission logic...")
+# df.sort_values(by=[VISIT_LINK_COLUMN, READMISSION_COUNT_COLUMN], inplace=True)
+# df['Next_Visit_RDays'] = df.groupby(VISIT_LINK_COLUMN)[READMISSION_DAYS_COLUMN].shift(-1)
+# df[TARGET_COLUMN] = 0
+# # df[f"{READMISSION_DAYS_COLUMN}_final_value"] = pd.NA # Use pd.NA for pandas >= 1.0
+# valid_readmission_condition = (df['Next_Visit_RDays'].notna()) & \
+#                               (df['Next_Visit_RDays'] <= READMISSION_WINDOW)
+# df.loc[valid_readmission_condition, TARGET_COLUMN] = 1
+# # df.loc[valid_readmission_condition, f"{READMISSION_DAYS_COLUMN}_final_value"] = df.loc[valid_readmission_condition, 'Next_Visit_RDays']
+# print(f"Processed readmission logic. {df[TARGET_COLUMN].sum()} visits marked as leading to a 30-day readmission.")
 
 # --- Final Column Adjustments ---
 # df.drop(columns=[READMISSION_DAYS_COLUMN], inplace=True, errors='ignore')
 # df.rename(columns={f"{READMISSION_DAYS_COLUMN}_final_value": READMISSION_DAYS_COLUMN}, inplace=True)
 # df.drop(columns=['Next_Visit_RDays'], inplace=True, errors='ignore')
 df[TARGET_COLUMN] = df[TARGET_COLUMN].astype(int)
-df[READMISSION_DAYS_COLUMN] = pd.to_numeric(df[READMISSION_DAYS_COLUMN], errors='coerce')
+# df[READMISSION_DAYS_COLUMN] = pd.to_numeric(df[READMISSION_DAYS_COLUMN], errors='coerce')
 print(f"Final record count: {len(df)}")
 
 

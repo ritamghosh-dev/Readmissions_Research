@@ -10,9 +10,9 @@ procedure_mapping = {}
 discharge_mapping = {}
 
 # --- Define column names as constants ---
-TARGET_COLUMN = 'Readmitted'
-READMISSION_DAYS_COLUMN = 'Readmission_Days'
-READMISSION_COUNT_COLUMN = 'Readmission_Count' # Added constant
+TARGET_COLUMN = 'Readmitted30'
+READMISSION_DAYS_COLUMN = 'Days_to_be_Readmitted' # Column with days to readmission
+READMISSION_COUNT_COLUMN = 'Readmission_Label' # Added constant
 # --- END CONSTANTS ---
 
 def load_procedure_mapping(csv_path):
@@ -207,14 +207,14 @@ def convert_row_to_narrative(row):
             else: outcome_parts.append(f"a length of stay of {los_val} days")
         except (ValueError, TypeError): pass
 
-    if row.get('DIED') == 1:
-        outcome_parts.append("resulting in patient death")
-    else:
-        disp = row.get('DISPUNIFORM')
-        if pd.isna(disp) and 'DISPUB04' in row: disp = row.get('DISPUB04')
-        if pd.notna(disp):
-            disp_desc = interpret_disposition(disp)
-            if disp_desc != "with unspecified disposition": outcome_parts.append(f"with discharge {disp_desc}")
+    # if row.get('DIED') == 1:
+    #     outcome_parts.append("resulting in patient death")
+
+    disp = row.get('DISPUNIFORM')
+    if pd.isna(disp) and 'DISPUB04' in row: disp = row.get('DISPUB04')
+    if pd.notna(disp):
+        disp_desc = interpret_disposition(disp)
+        if disp_desc != "with unspecified disposition": outcome_parts.append(f"with discharge {disp_desc}")
 
     # The TARGET_COLUMN (Readmitted) and actual readmission days are now explicitly NOT added to narrative here
     # to prevent data leakage, as per your previous instruction.
