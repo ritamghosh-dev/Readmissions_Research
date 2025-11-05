@@ -1,7 +1,11 @@
-Column_Explanations.xlsx
-Scratchpad.py
-sample_data.csv
+data/tokenized_hf_dataset
+data/tokenized_hf_dataset_gemma3_1b
+data/tokenized_hf_dataset_variable_cpt
+data/narrative_data.csv
+data/NY2019_Ritam.csv
+data/original_data.csv
+data/preprocessed_data.csv
+data/sample_data.csv
 .DS_Store
 .env
-data/
-results/
+results
